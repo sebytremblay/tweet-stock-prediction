@@ -1,8 +1,13 @@
 import string
 import re
+import pandas as pd
+
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from scipy.sparse import hstack
 
 def preprocess_tweet(tweet, lemmatizer=WordNetLemmatizer()):
     """Apply NLP preprocessing to a given tweet, preserving stock tickers and URLs.
