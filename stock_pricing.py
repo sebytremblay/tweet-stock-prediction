@@ -43,7 +43,9 @@ def mostRecentStockDate(tweet_date, when):
     if when == 'day before':
         day_before = str((tweet_date - pd.Timedelta(days=1)).date())
         if day_before is None:
-            day_before = str((tweet_date - pd.Timedelta(days=3)).date())
+            day_before = str((tweet_date - pd.Timedelta(days=2)).date())
+            if day_before is None:
+                day_before = str((tweet_date - pd.Timedelta(days=3)).date())
         return day_before
 
     elif when == 'day after':
