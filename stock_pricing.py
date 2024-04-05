@@ -1,5 +1,22 @@
 import yfinance as yf
 import pandas as pd
+import pandas_market_calendars as mcal
+
+def isTradingDay(date, nyse=mcal.get_calendar('NYSE')):
+    """Check if the given date is a trading day for the NYSE.
+
+    Args:
+        date (str): The date to check in 'YYYY-MM-DD' format.
+        nyse (pandas_market_calendars.exchange_calendar.ExchangeCalendar): The NYSE calendar.
+        
+    Returns:
+        bool: True if the date is a trading day, False otherwise.
+    """
+    # Use the date parameter to create a date range where the start and end are the same date
+    schedule = nyse.schedule(start_date=date, end_date=date)
+    
+    # If the schedule DataFrame is empty, the date is not a trading day
+    return not schedule.empty
 
 def get_stock_data(ticker):
     """Gets the stock data for the given ticker.
@@ -35,29 +52,33 @@ def create_df(ticker_lst):
     
     return ticker_dfs
 
-def mostRecentStockDate(tweet_date, when):
+def mostRecentStockDate(tweet_date, when, nyse):
     """
-    Returns the most recent stock date
+    Returns the most recent trading day given the conditions.
     
+    Args:
+        tweet_date (pandas.Timestamp): The date of the tweet.
+        when (str): The condition to check.
+        nyse (pandas_market_calendars.exchange_calendar.ExchangeCalendar): The NYSE calendar.
+        
+    Returns:
+        str: The most recent trading day.
     """
     if when == 'day before':
-        day_before = str((tweet_date - pd.Timedelta(days=1)).date())
-        if day_before is None:
-            day_before = str((tweet_date - pd.Timedelta(days=2)).date())
-            if day_before is None:
-                day_before = str((tweet_date - pd.Timedelta(days=3)).date())
-        return day_before
-
-    elif when == 'day after':
-        day_after = str((tweet_date + pd.Timedelta(days=1)).date())
-        if day_after is None:
-            day_after = str((tweet_date + pd.Timedelta(days=3)).date())
-        return day_after
-    
+        day = tweet_date - pd.Timedelta(days=1)
+        while not isTradingDay(day.strftime('%Y-%m-%d'), nyse):
+            day = day - pd.Timedelta(days=1)
+        return day.strftime('%Y-%m-%d')
     elif when == 'day of':
-        day_of = str((tweet_date).date())
-        
-        return day_of
+        day = tweet_date
+        while not isTradingDay(day.strftime('%Y-%m-%d'), nyse):
+            day = day - pd.Timedelta(days=1)
+        return day.strftime('%Y-%m-%d')
+    elif when == 'day after':
+        day = tweet_date + pd.Timedelta(days=1)
+        while not isTradingDay(day.strftime('%Y-%m-%d'), nyse):
+            day = day + pd.Timedelta(days=1)
+        return day.strftime('%Y-%m-%d')
 
 def add_price_data(stock_dict, tweet_df, ticker_lst):
     """Add stock price data to the tweet DataFrame.
@@ -70,6 +91,9 @@ def add_price_data(stock_dict, tweet_df, ticker_lst):
     Returns:
         pandas.DataFrame: The tweet DataFrame with stock price data added.
     """
+    # Load the NYSE calendar
+    nyse = mcal.get_calendar('NYSE')
+    
     for ticker in ticker_lst:
         stock_df = stock_dict[ticker]
         for index, row in tweet_df.iterrows():
@@ -78,9 +102,14 @@ def add_price_data(stock_dict, tweet_df, ticker_lst):
                 tweet_date = row['timestamp']
                 
                 # Extract the date string
-                day_before = mostRecentStockDate(tweet_date, 'day before')
-                day_of = mostRecentStockDate(tweet_date, 'day of')
-                day_after = mostRecentStockDate(tweet_date, 'day after')
+                day_before = mostRecentStockDate(tweet_date, 'day before', nyse)
+                day_of = mostRecentStockDate(tweet_date, 'day of', nyse)
+                day_after = mostRecentStockDate(tweet_date, 'day after', nyse)
+                
+                # Save the dates in the dataframe
+                tweet_df.at[index, 'Date Day Before Tweet'] = day_before
+                tweet_df.at[index, 'Date Day of Tweet'] = day_of
+                tweet_df.at[index, 'Date Day After Tweet'] = day_after
                 
                 # Filter the DataFrame based on the date string
                 filtered_df_before = stock_df.loc[stock_df['Date'] == day_before]
@@ -92,8 +121,7 @@ def add_price_data(stock_dict, tweet_df, ticker_lst):
                 elif filtered_df_of.empty:
                     price_day_of = 'N/A'
                 elif filtered_df_after.empty:
-                    price_day_afterafter = 'N/A'
-                
+                    price_day_after = 'N/A'
                 else:
                     # Select the 'Close' column from the filtered DataFrame
                     close_series_before = filtered_df_before['Close']
@@ -116,3 +144,43 @@ def add_price_data(stock_dict, tweet_df, ticker_lst):
                 tweet_df.at[index, 'Price Day After Tweet'] = price_day_after
             
     return tweet_df
+
+def preprocess_nasdaq_df(size=-1):     
+    """Loads the stockerbot-export.csv file and preprocesses the data.
+    
+    Args:
+        size (int): The number of rows to load from the CSV file.
+
+    Returns:
+        pandas.DataFrame: The preprocessed data.
+    """
+    # Load the data frame  
+    df = pd.read_csv("stockerbot-export.csv", on_bad_lines='skip')
+    
+    # If size is provided, subset the dataframe
+    if size > 0:
+        df = df.sample(size)
+    
+    # Drop the last column
+    df = df.iloc[:, :8]
+    df['timestamp'] = pd.to_datetime(df['timestamp'], format='%a %b %d %H:%M:%S +0000 %Y', errors='coerce')
+    df = df.dropna(subset=['timestamp'])
+
+    # Access date components for each timestamp
+    df['month'] = df['timestamp'].dt.month
+    df['day'] = df['timestamp'].dt.day
+    df['year'] = df['timestamp'].dt.year
+
+    # Add new columns to the DataFrame
+    df['Price Day Before Tweet'] = pd.NA
+    df['Price Day of Tweet'] = pd.NA
+    df['Price Day After Tweet'] = pd.NA
+
+    # Get the unique stock tickers
+    ticker_lst = df['symbols'].unique().tolist()
+
+    # Create a dictionary of stock dataframes
+    stock_data = create_df(ticker_lst)
+    
+    # Merge the stock data with the tweet data
+    return add_price_data(stock_data, df, ticker_lst)
