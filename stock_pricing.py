@@ -2,7 +2,7 @@ import yfinance as yf
 import pandas as pd
 import pandas_market_calendars as mcal
 
-def isTradingDay(date, nyse=mcal.get_calendar('NYSE')):
+def is_trading_day(date, nyse=mcal.get_calendar('NYSE')):
     """Check if the given date is a trading day for the NYSE.
 
     Args:
@@ -17,17 +17,6 @@ def isTradingDay(date, nyse=mcal.get_calendar('NYSE')):
     
     # If the schedule DataFrame is empty, the date is not a trading day
     return not schedule.empty
-
-def get_stock_data(ticker):
-    """Gets the stock data for the given ticker.
-
-    Args:
-        ticker (str): The stock ticker to get data for.
-
-    Returns:
-        pandas.DataFrame: The stock data for the given ticker.
-    """
-    return yf.download(ticker)
 
 def create_df(ticker_lst):
     """Builds a dictionary of stock dataframes for the given list of tickers.
@@ -48,11 +37,10 @@ def create_df(ticker_lst):
         # Add stock data to dictionary
         ticker_dfs[ticker] = stock_df
         ticker_dfs[ticker].reset_index(inplace=True)
-        #ticker_dfs[ticker]['Date'] = pd.to_datetime(ticker_dfs[ticker]['Date'], format='%a %b %d %H:%M:%S +0000 %Y')
     
     return ticker_dfs
 
-def mostRecentStockDate(tweet_date, when, nyse):
+def most_recent_stock_date(tweet_date, when, nyse):
     """
     Returns the most recent trading day given the conditions.
     
@@ -66,17 +54,17 @@ def mostRecentStockDate(tweet_date, when, nyse):
     """
     if when == 'day before':
         day = tweet_date - pd.Timedelta(days=1)
-        while not isTradingDay(day.strftime('%Y-%m-%d'), nyse):
+        while not is_trading_day(day.strftime('%Y-%m-%d'), nyse):
             day = day - pd.Timedelta(days=1)
         return day.strftime('%Y-%m-%d')
     elif when == 'day of':
         day = tweet_date
-        while not isTradingDay(day.strftime('%Y-%m-%d'), nyse):
+        while not is_trading_day(day.strftime('%Y-%m-%d'), nyse):
             day = day - pd.Timedelta(days=1)
         return day.strftime('%Y-%m-%d')
     elif when == 'day after':
         day = tweet_date + pd.Timedelta(days=1)
-        while not isTradingDay(day.strftime('%Y-%m-%d'), nyse):
+        while not is_trading_day(day.strftime('%Y-%m-%d'), nyse):
             day = day + pd.Timedelta(days=1)
         return day.strftime('%Y-%m-%d')
 
@@ -94,52 +82,43 @@ def add_price_data(stock_dict, tweet_df, ticker_lst):
     # Load the NYSE calendar
     nyse = mcal.get_calendar('NYSE')
     
-    for ticker in ticker_lst:
-        stock_df = stock_dict[ticker]
-        for index, row in tweet_df.iterrows():
-            # Check if the stock ticker is 'AAPL'
-            if ticker == row['symbols']:
-                tweet_date = row['timestamp']
+    # Track dropped rows
+    rows_to_drop = []
                 
-                # Extract the date string
-                day_before = mostRecentStockDate(tweet_date, 'day before', nyse)
-                day_of = mostRecentStockDate(tweet_date, 'day of', nyse)
-                day_after = mostRecentStockDate(tweet_date, 'day after', nyse)
-                
-                print(f"Day Of: {day_of}")
-                
-                # Filter the DataFrame based on the date string
-                filtered_df_before = stock_df.loc[stock_df['Date'] == day_before]
-                filtered_df_of = stock_df.loc[stock_df['Date'] == day_of]
-                filtered_df_after = stock_df.loc[stock_df['Date'] == day_after]
-                
-                if filtered_df_before.empty:
-                    price_day_before = "N/A"
-                elif filtered_df_of.empty:
-                    price_day_of = 'N/A'
-                elif filtered_df_after.empty:
-                    price_day_after = 'N/A'
-                else:
-                    # Select the 'Close' column from the filtered DataFrame
-                    close_series_before = filtered_df_before['Close']
-                    close_series_of = filtered_df_of['Close']
-                    close_series_after = filtered_df_after['Close']
-                    
-                    # Convert the Series to a numpy array
-                    close_array_before = close_series_before.values
-                    close_array_of = close_series_of.values
-                    close_array_after = close_series_after.values
-                    
-                    # Access the first element of the numpy array
-                    price_day_before = close_array_before[0]
-                    price_day_of = close_array_of[0]
-                    price_day_after = close_array_after[0]
-                
-                #MOST RECENT DAY AFTER
-                tweet_df.at[index, 'Price Day Before Tweet'] = price_day_before
-                tweet_df.at[index, 'Price Day of Tweet'] = price_day_of
-                tweet_df.at[index, 'Price Day After Tweet'] = price_day_after
-            
+    for index, row in tweet_df.iterrows():
+        # Get the stock data for the ticker in the tweet
+        stock_df = stock_dict.get(row['symbols'], None)
+        
+        # Extract the date string
+        tweet_date = row['timestamp']
+        day_before = most_recent_stock_date(tweet_date, 'day before', nyse)
+        day_of = most_recent_stock_date(tweet_date, 'day of', nyse)
+        day_after = most_recent_stock_date(tweet_date, 'day after', nyse)
+        
+        # Filter the DataFrame based on the date string
+        filtered_df_before = stock_df.loc[stock_df['Date'] == day_before]
+        filtered_df_of = stock_df.loc[stock_df['Date'] == day_of]
+        filtered_df_after = stock_df.loc[stock_df['Date'] == day_after]
+        
+        # Drop the row if any of the filtered DataFrames are empty
+        if filtered_df_before.empty or filtered_df_of.empty or filtered_df_after.empty:
+            rows_to_drop.append(index)
+            continue
+
+        # Extract the price values
+        price_day_before = filtered_df_before['Close'].values[0]
+        price_day_of = filtered_df_of['Close'].values[0]
+        price_day_after = filtered_df_after['Close'].values[0]
+
+        # Update the tweet DataFrame
+        tweet_df.at[index, 'Price Day Before Tweet'] = price_day_before
+        tweet_df.at[index, 'Price Day of Tweet'] = price_day_of
+        tweet_df.at[index, 'Price Day After Tweet'] = price_day_after
+        
+    # Drop rows with missing values
+    tweet_df = tweet_df.drop(rows_to_drop)
+    print(f"Finished adding price data. Dropped {len(rows_to_drop)} rows.")  
+      
     return tweet_df
 
 def preprocess_nasdaq_df(size=-1):     
@@ -158,8 +137,7 @@ def preprocess_nasdaq_df(size=-1):
     if size > 0:
         df = df.sample(size)
     
-    # Drop the last column
-    df = df.iloc[:, :8]
+    # Drop rows with missing values
     df['timestamp'] = pd.to_datetime(df['timestamp'], format='%a %b %d %H:%M:%S +0000 %Y', errors='coerce')
     df = df.dropna(subset=['timestamp'])
 
