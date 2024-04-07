@@ -106,10 +106,7 @@ def add_price_data(stock_dict, tweet_df, ticker_lst):
                 day_of = mostRecentStockDate(tweet_date, 'day of', nyse)
                 day_after = mostRecentStockDate(tweet_date, 'day after', nyse)
                 
-                # Save the dates in the dataframe
-                tweet_df.at[index, 'Date Day Before Tweet'] = day_before
-                tweet_df.at[index, 'Date Day of Tweet'] = day_of
-                tweet_df.at[index, 'Date Day After Tweet'] = day_after
+                print(f"Day Of: {day_of}")
                 
                 # Filter the DataFrame based on the date string
                 filtered_df_before = stock_df.loc[stock_df['Date'] == day_before]
