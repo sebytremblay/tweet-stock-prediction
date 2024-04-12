@@ -121,17 +121,18 @@ def add_price_data(stock_dict, tweet_df, ticker_lst):
       
     return tweet_df
 
-def preprocess_nasdaq_df(size=-1):     
+def preprocess_nasdaq_df(raw_file_path, size=-1):     
     """Loads the stockerbot-export.csv file and preprocesses the data.
     
     Args:
+        raw_file_path (str): The path to the original CSV file.
         size (int): The number of rows to load from the CSV file.
 
     Returns:
         pandas.DataFrame: The preprocessed data.
     """
     # Load the data frame  
-    df = pd.read_csv("stockerbot-export.csv", on_bad_lines='skip')
+    df = pd.read_csv(raw_file_path, on_bad_lines='skip')
     
     # If size is provided, subset the dataframe
     if size > 0:
