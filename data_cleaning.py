@@ -82,3 +82,37 @@ def preprocess_tweet(tweet, lemmatizer=WordNetLemmatizer()):
             final_tokens.append(token)
 
     return final_tokens
+
+def prepare_features(df, text_column, categorical_columns, numeric_columns, target_column, vectorizer, encoder, scaler):
+    """Prepare the features for training and evaluation.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        text_column (str): The names of the text column.
+        categorical_columns (list): The names of the categorical columns.
+        numeric_columns (list): The names of the numeric columns.
+        target_column (str): The name of the target column.
+        vectorizer (TfidfVectorizer): The fitted text vectorizer.
+        encoder (OneHotEncoder): The fitted categorical encoder.
+        scaler (StandardScaler): The fitted numeric scaler.
+    
+    Returns:
+        X: The input features.
+        y: The target variable.
+    """
+    # Vectorize the text column
+    text_features = vectorizer.fit_transform(df[text_column].astype('U'))
+    
+    # Encode the categorical columns
+    categorical_features = encoder.fit_transform(df[categorical_columns])
+    
+    # Scale the numeric columns
+    numeric_features = scaler.fit_transform(df[numeric_columns])
+    
+    # Concatenate the features
+    X = hstack([text_features, categorical_features, numeric_features])
+    
+    # Extract the target variable
+    y = df[target_column].values
+    
+    return X, y
