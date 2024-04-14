@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import pickle
 import numpy as np
+import pandas as pd
+import data_cleaning as dc
 
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.linear_model import Ridge, Lasso
@@ -101,3 +103,72 @@ def evaluate_model(model, X_test, y_test):
     r2 = r2_score(y_test, y_pred)
     
     return mae, mse, rmse, r2
+
+def extract_dataframes(df, column_name, min_count=10):
+    """Extracts unique dataframes from a dataframe based on the occurences of a column value.
+
+    Args:
+        df (DataFrame): The dataframe to extract dataframes from.
+        column_name (str): The name of the column to distinguish the dataframes.
+        min_count (int, optional): The minimum occurences of a value to be considered. Defaults to 10.
+
+    Returns:
+        dict: A dictionary of dataframes.
+    """
+    # Count the occurences of each value
+    occurences = df[column_name].value_counts()
+    
+    # Extract the dataframes
+    df_dict = {}
+    for classifier, data in df.groupby(column_name):
+        if occurences[classifier] >= min_count:
+            df_dict[classifier] = data.copy()
+            
+    return df_dict
+
+def run_analytics(df, column_name, classifier_name, 
+                  text_column, categorical_columns, numerical_columns, 
+                  target_column, 
+                  tfidf_vectorizer, onehot_encoder, scaler, 
+                  models, model_names, 
+                  min_count=10):
+    """Runs analytics on a dataframe based on the occurences of a column value.
+
+    Args:
+        df (DataFrame): The dataframe to run analytics on.
+        column_name (str): The name of the column to distinguish the dataframes.
+        classifier_name (str): The name of the classifier to evaluate.
+        text_column (str): The name of the text column.
+        categorical_columns (list): The names of the categorical columns.
+        numerical_columns (list): The names of the numerical columns.
+        target_column (str): The name of the target column.
+        tfidf_vectorizer (TfidfVectorizer): The fitted text vectorizer.
+        onehot_encoder (OneHotEncoder): The fitted categorical encoder.
+        scaler (StandardScaler): The fitted numerical scaler.
+        models (list): The list of models to evaluate.
+        model_names (list): The list of model names.
+        min_count (int, optional): The minimum occurences of a value to be considered. Defaults to 10.
+    """
+    # Extract the dataframes
+    dataframes = extract_dataframes(df, column_name, min_count)
+    
+    # Run predictions for each classifier
+    predictions = []
+    for classifier, classifier_df in dataframes.items():
+        # Prepare the features and target variable
+        X_user, y_user = dc.prepare_features(classifier_df, 
+                                             text_column, categorical_columns, numerical_columns, 
+                                             target_column, 
+                                             tfidf_vectorizer, onehot_encoder, scaler)
+        
+        # Predict the target variable
+        classifier_data = {classifier_name: classifier, 'Tweet Count': len(classifier_df)}
+        for model, model_name in zip(models, model_names):
+            y_pred = model.predict(X_user)
+            classifier_data[f'{model_name} MAE'] = mean_absolute_error(y_user, y_pred)
+            
+        classifier_data['Min MAE'] = min(x for x in classifier_data.values() if isinstance(x, (int, float)))
+        predictions.append(classifier_data)
+            
+    # Store the predictions in a dataframe
+    return pd.DataFrame(predictions)
