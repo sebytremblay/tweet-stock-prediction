@@ -1,12 +1,9 @@
 import string
 import re
-import pandas as pd
 
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from scipy.sparse import hstack
 
 def preprocess_tweet(tweet, lemmatizer=WordNetLemmatizer()):
@@ -15,6 +12,9 @@ def preprocess_tweet(tweet, lemmatizer=WordNetLemmatizer()):
     Args:
         tweet (str): The tweet to be preprocessed.
         lemmatizer (WordNetLemmatizer): The lemmatizer to be used.
+        
+    Returns:
+        str: The preprocessed tweet.
     """
     # Define patterns for stock tickers and URLs
     ticker_pattern = r'\$\w+'
@@ -81,9 +81,9 @@ def preprocess_tweet(tweet, lemmatizer=WordNetLemmatizer()):
         else:
             final_tokens.append(token)
 
-    return final_tokens
+    return " ".join(final_tokens)
 
-def prepare_features(df, text_column, categorical_columns, numeric_columns, target_column, vectorizer, encoder, scaler):
+def prepare_features(df, text_column, categorical_columns, numeric_columns, target_column, vectorizer, encoder, scaler, training_data=False):
     """Prepare the features for training and evaluation.
 
     Args:
@@ -95,19 +95,22 @@ def prepare_features(df, text_column, categorical_columns, numeric_columns, targ
         vectorizer (TfidfVectorizer): The fitted text vectorizer.
         encoder (OneHotEncoder): The fitted categorical encoder.
         scaler (StandardScaler): The fitted numeric scaler.
+        training_data (bool): Whether the data is for training or evaluation.
     
     Returns:
         X: The input features.
         y: The target variable.
     """
-    # Vectorize the text column
-    text_features = vectorizer.fit_transform(df[text_column].astype('U'))
-    
-    # Encode the categorical columns
-    categorical_features = encoder.fit_transform(df[categorical_columns])
-    
-    # Scale the numeric columns
-    numeric_features = scaler.fit_transform(df[numeric_columns])
+    # Fit the vectorizer, encoder, and scaler if this is training data
+    if training_data:
+        vectorizer.fit(df[text_column].astype('U'))
+        encoder.fit(df[categorical_columns])
+        scaler.fit(df[numeric_columns])
+
+    # Transform the features
+    text_features = vectorizer.transform(df[text_column].astype('U')) 
+    categorical_features = encoder.transform(df[categorical_columns])
+    numeric_features = scaler.transform(df[numeric_columns])
     
     # Concatenate the features
     X = hstack([text_features, categorical_features, numeric_features])
