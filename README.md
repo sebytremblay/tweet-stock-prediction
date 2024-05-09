@@ -17,6 +17,14 @@ This repository hosts the Tweet Stock Prediction project, which aims to predict 
   
   The Random Forest model notably outperformed the others, achieving a Mean Absolute Error (MAE) of ~$0.05.
 
+## How to Use
+
+1. Clone the repository with:
+   
+   ```git clone git@github.com:sebytremblay/tweet-stock-prediction.git```   
+2. Unzip the data and models zip files. Verify they are properly named `./data` and `./models`.
+3. Navigate to `./main.ipynb` and click run all. By default, model re-training and data pre-processing regeneration are disabled. To enable this, set `force_data_regeneration` and `force_retrain` respectively to true.
+
 ## Requirements
 
 - Python 3.6+
