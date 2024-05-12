@@ -32,10 +32,9 @@ def create_df(ticker_lst):
         # Get stock data
         stock = yf.Ticker(ticker)
         stock_d = stock.history(period="10y")
-        stock_df = stock_d.loc['2018-01-01':'2018-12-31']
         
         # Add stock data to dictionary
-        ticker_dfs[ticker] = stock_df
+        ticker_dfs[ticker] = stock_d
         ticker_dfs[ticker].reset_index(inplace=True)
     
     return ticker_dfs
@@ -133,14 +132,16 @@ def preprocess_nasdaq_df(raw_file_path, size=-1):
     """
     # Load the data frame  
     df = pd.read_csv(raw_file_path, on_bad_lines='skip')
+    print(f"Loaded {len(df)} rows from the CSV file.")
     
     # If size is provided, subset the dataframe
     if size > 0:
         df = df.sample(size)
     
     # Drop rows with missing values
-    df['timestamp'] = pd.to_datetime(df['timestamp'], format='%a %b %d %H:%M:%S +0000 %Y', errors='coerce')
+    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
     df = df.dropna(subset=['timestamp'])
+    print(f"Dropped {len(df) - len(df.dropna(subset=['timestamp']))} rows with missing timestamps.")
 
     # Access date components for each timestamp
     df['month'] = df['timestamp'].dt.month
