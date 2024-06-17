@@ -28,7 +28,4 @@ This repository hosts the Tweet Stock Prediction project, which aims to predict 
 ## Requirements
 
 - Python 3.6+
-- Scikit-learn
-- Pandas
-- NumPy
-- Matplotlib (for visualization)
+- Install requirements in `requirements.txt`

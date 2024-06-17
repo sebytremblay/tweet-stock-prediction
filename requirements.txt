@@ -8,3 +8,5 @@ scipy
 matplotlib
 yfinance
 pandas_market_calendars
+transformers
+torch
